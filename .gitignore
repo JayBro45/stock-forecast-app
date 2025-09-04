@@ -1,0 +1,12 @@
+# Virtual env
+.venv/
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+# Notebooks
+.ipynb_checkpoints/
+# Data
+data/
+# IDE
+.vscode/
+.idea/

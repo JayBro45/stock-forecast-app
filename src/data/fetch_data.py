@@ -14,6 +14,7 @@ def download_stock(symbol: str, start=(today-relativedelta(years=1)).strftime('%
     df = yf.download(symbol, start=start, end=end,progress=False,auto_adjust=True)
     if df.empty:
         raise ValueError(f"No data found for {symbol}")
+    df.columns = df.columns.get_level_values(0)
     df.reset_index(inplace=True)
     return df
 

@@ -18,6 +18,12 @@ An end-to-end application for:
 - FastAPI REST endpoints
 - Streamlit / Plotly visualizations
 
+### Data Pipeline
+- Uses [yfinance](https://pypi.org/project/yfinance/) to pull OHLCV data
+- Stores unmodified CSVs in `data/raw/`
+- Notebooks access `data/raw` for exploratory plots
+
+
 ## Environment Setup
 ```bash
 git clone https://github.com/JayBro45/stock-forecast-app.git

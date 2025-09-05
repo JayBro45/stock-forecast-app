@@ -6,7 +6,7 @@ __pycache__/
 # Notebooks
 .ipynb_checkpoints/
 # Data
-data/
+/data/
 # IDE
 .vscode/
 .idea/

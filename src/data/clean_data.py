@@ -20,8 +20,10 @@ def clean_ticker(symbol: str):
     # --- Feature engineering ---
     df["Daily_Return"] = df["Close"].pct_change()
     df["Log_Return"] = np.log(df["Close"] / df["Close"].shift(1))
-    df["MA_20"] = df["Close"].rolling(20).mean()
-    df["MA_50"] = df["Close"].rolling(50).mean()
+    df["SMA_20"] = df["Close"].rolling(20).mean()
+    df["SMA_50"] = df["Close"].rolling(50).mean()
+    df['Volatility_10'] = df['Daily_Return'].rolling(10).std()
+    df['DayOfWeek'] = df.index.dayofweek
 
     # drop initial NaNs caused by rolling
     df = df.dropna()

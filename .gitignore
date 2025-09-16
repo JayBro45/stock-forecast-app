@@ -6,6 +6,7 @@ lightning_logs/
 __pycache__/
 *.py[cod]
 # Notebooks
+notebooks/
 .ipynb_checkpoints/
 # Data
 /data/

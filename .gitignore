@@ -4,7 +4,7 @@
 __pycache__/
 *.py[cod]
 # Notebook
-.ckpt
+*.ckpt
 lightning_logs/
 .ipynb_checkpoints/
 # Data

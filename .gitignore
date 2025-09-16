@@ -1,12 +1,11 @@
 # Virtual env
 .venv/
 # Byte-compiled / cache
-.ckpt
-lightning_logs/
 __pycache__/
 *.py[cod]
-# Notebooks
-notebooks/
+# Notebook
+.ckpt
+lightning_logs/
 .ipynb_checkpoints/
 # Data
 /data/

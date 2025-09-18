@@ -14,9 +14,9 @@ def NeuralProphetModel(train_df, test_df, save_dir="models/neuralprophet", epoch
     Parameters
     ----------
     train_df : pd.DataFrame
-        Training data with columns ['ds', 'y'].
+        Training data with columns including ['Date', 'Close'].
     test_df : pd.DataFrame
-        Testing data with columns ['ds', 'y'].
+        Testing data with columns including ['Date', 'Close'].
     save_dir : str
         Directory to save model and plots.
     epochs : int
@@ -24,13 +24,19 @@ def NeuralProphetModel(train_df, test_df, save_dir="models/neuralprophet", epoch
 
     Returns
     -------
-    model : NeuralProphet
-        Trained model.
     forecast : pd.DataFrame
         Forecasted values.
     metrics : dict
         MAE and RMSE scores.
     """
+
+    # --- Preprocess: Keep only Date & Close, rename to ds & y ---
+    train_df = train_df.rename(columns={"Date": "ds", "Close": "y"})[["ds", "y"]]
+    test_df = test_df.rename(columns={"Date": "ds", "Close": "y"})[["ds", "y"]]
+
+    # Ensure datetime type
+    train_df["ds"] = pd.to_datetime(train_df["ds"])
+    test_df["ds"] = pd.to_datetime(test_df["ds"])
 
     # Create save directory
     os.makedirs(save_dir, exist_ok=True)
@@ -60,10 +66,6 @@ def NeuralProphetModel(train_df, test_df, save_dir="models/neuralprophet", epoch
     rmse = np.sqrt(mean_squared_error(y_true, y_pred))
     metrics = {"MAE": mae, "RMSE": rmse}
 
-    # Save model
-    model_path = os.path.join(save_dir, "neuralprophet_model.pkl")
-    joblib.dump(model, model_path)
-
     # Plot results
     plt.figure(figsize=(12, 6))
     plt.plot(train_df["ds"], train_df["y"], label="Train")
@@ -78,4 +80,4 @@ def NeuralProphetModel(train_df, test_df, save_dir="models/neuralprophet", epoch
     plt.savefig(plot_path)
     plt.close()
 
-    return model, forecast, metrics
+    return forecast, metrics

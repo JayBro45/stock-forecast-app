@@ -21,8 +21,6 @@ def NaiveBaselineModel(train_df, test_df, save_dir="models/naive_baseline"):
 
     Returns
     -------
-    last_observation : float
-        The last observed value from training data.
     forecast : np.ndarray
         Forecasted values (constant).
     metrics : dict
@@ -45,10 +43,6 @@ def NaiveBaselineModel(train_df, test_df, save_dir="models/naive_baseline"):
     rmse = np.sqrt(mean_squared_error(y_true, y_pred))
     metrics = {"MAE": mae, "RMSE": rmse}
 
-    # Save model (just the last observation)
-    model_path = os.path.join(save_dir, "naive_baseline.pkl")
-    joblib.dump(last_observation, model_path)
-
     # Plot results
     plt.figure(figsize=(12, 6))
     plt.plot(train_df["Date"], train_df["Close"], label="Train")
@@ -63,4 +57,4 @@ def NaiveBaselineModel(train_df, test_df, save_dir="models/naive_baseline"):
     plt.savefig(plot_path)
     plt.close()
 
-    return last_observation, forecast, metrics
+    return forecast, metrics

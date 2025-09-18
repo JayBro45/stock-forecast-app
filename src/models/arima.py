@@ -24,8 +24,6 @@ def ArimaModel(train_df, test_df, order=(6, 3, 1), save_dir="models/arima"):
 
     Returns
     -------
-    model_fit : ARIMA
-        Trained ARIMA model.
     forecast : pd.Series
         Forecasted values.
     metrics : dict
@@ -52,10 +50,6 @@ def ArimaModel(train_df, test_df, order=(6, 3, 1), save_dir="models/arima"):
     rmse = np.sqrt(mean_squared_error(y_true, y_pred))
     metrics = {"MAE": mae, "RMSE": rmse}
 
-    # Save model
-    model_path = os.path.join(save_dir, "arima_model.pkl")
-    joblib.dump(model_fit, model_path)
-
     # Plot results
     plt.figure(figsize=(12, 6))
     plt.plot(train_df["Date"], train_df["Close"], label="Train")
@@ -70,4 +64,4 @@ def ArimaModel(train_df, test_df, order=(6, 3, 1), save_dir="models/arima"):
     plt.savefig(plot_path)
     plt.close()
 
-    return model_fit, forecast, metrics
+    return forecast, metrics

@@ -9,7 +9,7 @@ RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 today = datetime.today().date()
 
-def download_stock(symbol: str, start=(today-relativedelta(years=1)).strftime('%Y-%m-%d'), end=today.strftime('%Y-%m-%d')):
+def download_stock(symbol: str, start=(today-relativedelta(years=10)).strftime('%Y-%m-%d'), end=today.strftime('%Y-%m-%d')):
     print(f"Fetching data for {symbol} from {start} to {end}")
     df = yf.download(symbol, start=start, end=end,progress=False,auto_adjust=True)
     if df.empty:

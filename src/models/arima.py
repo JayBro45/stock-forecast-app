@@ -14,9 +14,9 @@ def ArimaModel(train_df, test_df, order=(6, 3, 1), save_dir="models/arima"):
     Parameters
     ----------
     train_df : pd.DataFrame
-        Training data with columns ['ds', 'y'].
+        Training data with reqd columns ['Date', 'Close'].
     test_df : pd.DataFrame
-        Testing data with columns ['ds', 'y'].
+        Testing data with reqd columns ['Date', 'Close'].
     order : tuple
         ARIMA order (p, d, q).
     save_dir : str

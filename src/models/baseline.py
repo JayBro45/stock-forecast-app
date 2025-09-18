@@ -13,9 +13,9 @@ def NaiveBaselineModel(train_df, test_df, save_dir="models/naive_baseline"):
     Parameters
     ----------
     train_df : pd.DataFrame
-        Training data with columns ['ds', 'y'].
+        Training data with reqd columns ['Date', 'Close'].
     test_df : pd.DataFrame
-        Testing data with columns ['ds', 'y'].
+        Testing data with reqd columns ['Date', 'Close'].
     save_dir : str
         Directory to save model and plots.
 

@@ -9,22 +9,50 @@ An end-to-end application for:
 - Serving predictions through a FastAPI backend
 - Visualizing results via an interactive dashboard
 
-## Planned Features
-- Data ingestion from Yahoo Finance
-- Feature engineering (lags, technical indicators)
-- Baseline models (Naive, SMA)
-- ARIMA & Gradient Boosting forecasts
+---
+
+## ✅ Current Features
+- **Data Handling**
+  - CSV ingestion & preprocessing
+  - Added technical indicators (returns, log returns, SMA20, SMA50)
+
+- **Models Implemented**
+  - **Naive Baseline** (last observed value forecast)  
+  - **Prophet** (Facebook Prophet for time-series forecasting)  
+  - **NeuralProphet** (neural extension of Prophet with autoregressive terms)  
+
+- **Automation**
+  - Each script performs: **train/test split → training → forecasting → evaluation → saving results**
+  - Metrics (MAE, RMSE) automatically computed
+  - Forecast plots saved for comparison
+
+- **Outputs**
+  - Model artifacts saved as `.pkl`
+  - Forecast plots saved as `.png`
+  - Metrics returned as a Python dict (JSON-like)
+
+---
+
+## 🚀 Planned Features
+- More models:
+  - SMA / EMA baselines
+  - ARIMA / SARIMA
+  - Gradient Boosting & ML regressors
 - Walk-forward validation & backtesting
-- FastAPI REST endpoints
-- Streamlit / Plotly visualizations
+- REST API with **FastAPI**
+- Interactive visualization with **Streamlit / Plotly**
 
-### Data Pipeline
-- Uses [yfinance](https://pypi.org/project/yfinance/) to pull OHLCV data
-- Stores unmodified CSVs in `data/raw/`
-- Notebooks access `data/raw` for exploratory plots
+---
 
+## 📂 Data Pipeline
+- Uses [yfinance](https://pypi.org/project/yfinance/) to pull OHLCV data  
+- Stores raw CSVs in `data/raw/`  
+- Cleaned datasets in `data/processed/`  
+- Models train & test on processed datasets  
 
-## Environment Setup
+---
+
+## 🛠 Environment Setup
 ```bash
 git clone https://github.com/JayBro45/stock-forecast-app.git
 cd stock-forecast-app

@@ -34,4 +34,4 @@ def clean_ticker(symbol: str):
     print(f"Saved cleaned {symbol} → {out_path}")
 
 if __name__ == "__main__":
-    clean_ticker("AAPL")
+    clean_ticker("MSFT")

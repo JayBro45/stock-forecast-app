@@ -24,6 +24,6 @@ def save_to_csv(df: pd.DataFrame, symbol: str):
     print(f"Saved raw data -> {file_path}")
 
 if __name__ == "__main__":
-    symbol = "AAPL"
+    symbol = "MSFT"
     df = download_stock(symbol)
     save_to_csv(df, symbol)

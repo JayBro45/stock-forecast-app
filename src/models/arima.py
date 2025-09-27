@@ -24,6 +24,8 @@ def ArimaModel(train_df, test_df, order=(6, 3, 1), save_dir="models/arima"):
 
     Returns
     -------
+    model_fit : ARIMAResults
+        Fitted ARIMA model.
     forecast : pd.Series
         Forecasted values.
     metrics : dict
@@ -64,4 +66,4 @@ def ArimaModel(train_df, test_df, order=(6, 3, 1), save_dir="models/arima"):
     plt.savefig(plot_path)
     plt.close()
 
-    return forecast, metrics
+    return model_fit, forecast, metrics

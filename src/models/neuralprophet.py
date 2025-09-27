@@ -24,6 +24,8 @@ def NeuralProphetModel(train_df, test_df, save_dir="models/neuralprophet", epoch
 
     Returns
     -------
+    model : NeuralProphet
+        Trained NeuralProphet model.
     forecast : pd.DataFrame
         Forecasted values.
     metrics : dict
@@ -80,4 +82,4 @@ def NeuralProphetModel(train_df, test_df, save_dir="models/neuralprophet", epoch
     plt.savefig(plot_path)
     plt.close()
 
-    return forecast, metrics
+    return model, forecast, metrics

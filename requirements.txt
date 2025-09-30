@@ -10,3 +10,6 @@ uvicorn
 pydantic
 plotly
 jupyter
+tensorflow
+xgboost
+joblib

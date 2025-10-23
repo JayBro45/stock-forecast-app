@@ -92,6 +92,13 @@ def XGBoostModel(train_df, test_df, save_dir="models/xgboost", n_iter=20, cv_spl
     rmse = np.sqrt(mse)
     metrics = {"MAE": mae, "MSE": mse, "RMSE": rmse}
 
+    # Save model
+    model_path = os.path.join(save_dir, "xgboost_model.json")
+    best_model.save_model(model_path)
+    print(f"💾 Model saved at: {model_path}")
+
+
+
     # Plot results
     plt.figure(figsize=(12, 6))
     plt.plot(train_df["Date"], train_df["Close"], label="Train")

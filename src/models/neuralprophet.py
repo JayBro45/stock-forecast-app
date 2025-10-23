@@ -68,6 +68,13 @@ def NeuralProphetModel(train_df, test_df, save_dir="models/neuralprophet", epoch
     rmse = np.sqrt(mean_squared_error(y_true, y_pred))
     metrics = {"MAE": mae, "RMSE": rmse}
 
+    # Save model
+    model_path = os.path.join(save_dir, "neuralprophet_model.pkl")
+    joblib.dump(model, model_path)
+    print(f"💾 Model saved at: {model_path}")
+
+
+
     # Plot results
     plt.figure(figsize=(12, 6))
     plt.plot(train_df["ds"], train_df["y"], label="Train")

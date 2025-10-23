@@ -48,6 +48,8 @@ def NaiveBaselineModel(train_df, test_df, save_dir="models/naive_baseline"):
     # Save model 
     model_path = os.path.join(save_dir, "naive_baseline_model.pkl")
     joblib.dump(last_observation, model_path)
+    print(f"💾 Model saved at: {model_path}")
+
 
     # Plot results
     plt.figure(figsize=(12, 6))

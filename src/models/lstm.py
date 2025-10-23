@@ -94,6 +94,7 @@ def LSTMModel(train_df, test_df, save_dir="models/lstm", look_back=60, epochs=50
     model.save(os.path.join(save_dir, "lstm_model.h5"))
     joblib.dump(scaler, os.path.join(save_dir, "scaler.pkl"))
 
+
     # Plot results
     plt.figure(figsize=(12, 6))
     plt.plot(train_df["Date"], train_df["Close"], label="Train")

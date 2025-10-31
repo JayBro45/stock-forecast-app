@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 warnings.filterwarnings("ignore")
 
 # Import model functions
-from src.models.baseline import NaiveBaselineModel
+from src.models.naive_baseline import NaiveBaselineModel
 from src.models.arima import ArimaModel
 from src.models.neuralprophet import NeuralProphetModel
 from src.models.xgboost import XGBoostModel

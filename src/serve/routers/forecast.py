@@ -15,24 +15,40 @@ def forecast_next_30_days(model_name: str):
     Example: /forecast/xgboost
     """
 
-    base_path = f"models/{model_name.lower()}"
-    data_path = "data/processed/MSFT_clean.csv"
+    
+    # Use absolute paths relative to this file (src/serve)
+    base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..","models","metrics", model_name.lower()))
+    data_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..","..","..", "data", "processed", "MSFT_clean.csv"))
 
-    # Detect correct model file
-    possible_files = [
-        f"{base_path}/{model_name}_model.pkl",
-        f"{base_path}/{model_name}_model.h5",
-        f"{base_path}/{model_name}_model.json",
-    ]
-    model_path = next((f for f in possible_files if os.path.exists(f)), None)
 
+    # Ensure model directory exists
+    if not os.path.exists(base_path):
+        return {"error": f"Model directory not found at {base_path}"}
+
+    # Try to find model file dynamically
+    possible_exts = [".pkl", ".h5", ".json", ".joblib"]
+    model_path = None
+    for ext in possible_exts:
+        candidate = os.path.join(base_path, f"{model_name}_model{ext}")
+        if os.path.exists(candidate):
+            model_path = candidate
+            break
+
+    # Fallback: check if any file with 'model' in its name exists
     if not model_path:
-        return {"error": f"Model file not found in {base_path}."}
+        available = os.listdir(base_path)
+        for f in available:
+            if "model" in f.lower():
+                model_path = os.path.join(base_path, f)
+                break
 
+        if not model_path:
+            return {"error": f"No model file found in {base_path}. Available: {available}"}
+
+    # Validate dataset
     if not os.path.exists(data_path):
-        return {"error": "Dataset not found. Ensure 'data/processed/MSFT_clean.csv' exists."}
+        return {"error": f"Dataset not found at {data_path}."}
 
-    # Load dataset
     df = pd.read_csv(data_path)
     if "Date" not in df.columns or "Close" not in df.columns:
         return {"error": "Dataset must contain 'Date' and 'Close' columns."}
@@ -43,11 +59,10 @@ def forecast_next_30_days(model_name: str):
     last_date = df["Date"].iloc[-1]
     future_dates = pd.bdate_range(last_date + timedelta(days=1), periods=30)
 
-    # Forecast logic
     model_type = model_name.lower()
 
     try:
-        if model_type == "naive_baseline":
+        if model_type == "baseline":
             last_value = df["Close"].iloc[-1]
             forecast = np.full(30, last_value)
 
@@ -67,8 +82,6 @@ def forecast_next_30_days(model_name: str):
             import xgboost as xgb
             model = xgb.XGBRegressor()
             model.load_model(model_path)
-
-            # Use last known data for recursive forecast
             last_value = df["Close"].iloc[-1]
             forecast = []
             for _ in range(30):
@@ -97,7 +110,6 @@ def forecast_next_30_days(model_name: str):
     except Exception as e:
         return {"error": f"Forecast failed: {str(e)}"}
 
-    # Create output DataFrame
     result_df = pd.DataFrame({
         "Date": future_dates,
         "Forecast": forecast

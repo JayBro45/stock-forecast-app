@@ -1,61 +1,131 @@
-# Stock Forecast & Analysis App
+# Stock Forecast App
 
-> ⚠ Educational project – **not** financial advice.
+## 📝 Overview
 
-## Goal
-An end-to-end application for:
-- Collecting and cleaning OHLCV stock data
-- Forecasting prices using classical & ML time-series models
-- Serving predictions through a FastAPI backend
-- Visualizing results via an interactive dashboard
+This project is a Python-based web application designed to forecast stock prices using a variety of time-series models. It fetches historical stock data, cleans and preprocesses it, trains several different forecasting models, and serves the predictions through a RESTful API built with FastAPI.
 
----
+## ✨ Features
 
-## ✅ Current Features
-- **Data Handling**
-  - CSV ingestion & preprocessing
-  - Added technical indicators (returns, log returns, SMA20, SMA50)
+* **Data Pipeline**: Scripts to fetch historical data from Yahoo Finance and process it for modeling.
+* **Multiple Models**: Implements and evaluates several forecasting models, from simple baselines to complex neural networks.
+* **REST API**: Exposes a simple API endpoint to get a 30-day forecast for a given model.
+* **Model Evaluation**: Notebooks for analyzing and comparing the performance of different models.
 
-- **Models Implemented**
-  - **Naive Baseline** (last observed value forecast)  
-  - **Prophet** (Facebook Prophet for time-series forecasting)  
-  - **NeuralProphet** (neural extension of Prophet with autoregressive terms)  
+## 🛠️ Tech Stack
 
-- **Automation**
-  - Each script performs: **train/test split → training → forecasting → evaluation → saving results**
-  - Metrics (MAE, RMSE) automatically computed
-  - Forecast plots saved for comparison
+* **Backend Framework**: FastAPI
+* **Data Manipulation**: Pandas, NumPy
+* **Forecasting Models**:
+    * XGBoost
+    * ARIMA (`statsmodels`)
+    * LSTM (`tensorflow`)
+    * NeuralProphet
+* **Data Fetching**: `yfinance`
+* **Plotting**: `matplotlib`, `plotly`
 
-- **Outputs**
-  - Model artifacts saved as `.pkl`
-  - Forecast plots saved as `.png`
-  - Metrics returned as a Python dict (JSON-like)
+## 📂 Project Structure
 
----
+```
 
-## 🚀 Planned Features
-- More models:
-  - SMA / EMA baselines
-  - ARIMA / SARIMA
-  - Gradient Boosting & ML regressors
-- Walk-forward validation & backtesting
-- REST API with **FastAPI**
-- Interactive visualization with **Streamlit / Plotly**
+stock-forecast-app/
+├── data/
+│   ├── raw/          \# Raw, unprocessed data
+│   └── processed/    \# Cleaned data for modeling
+├── notebooks/        \# Jupyter notebooks for EDA, modeling, and evaluation
+├── src/
+│   ├── data/         \# Scripts for fetching and cleaning data
+│   ├── models/       \# Scripts for training models
+│   └── serve/        \# FastAPI application for serving forecasts
+└── requirements.txt  \# Project dependencies
 
----
+````
 
-## 📂 Data Pipeline
-- Uses [yfinance](https://pypi.org/project/yfinance/) to pull OHLCV data  
-- Stores raw CSVs in `data/raw/`  
-- Cleaned datasets in `data/processed/`  
-- Models train & test on processed datasets  
+## 🚀 Getting Started
 
----
+### Prerequisites
 
-## 🛠 Environment Setup
-```bash
-git clone https://github.com/JayBro45/stock-forecast-app.git
-cd stock-forecast-app
-python -m venv .venv
-.\.venv\Scripts\Activate
-pip install -r requirements.txt
+* Python 3.10+
+* `pip` for package management
+
+### Installation
+
+1.  **Clone the repository:**
+    ```bash
+    git clone <your-repository-url>
+    cd stock-forecast-app
+    ```
+
+2.  **Create and activate a virtual environment:**
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
+    ```
+
+3.  **Install the required dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+### Usage
+
+1.  **Run the data pipeline:**
+    First, fetch the raw data, then clean it.
+    ```bash
+    python src/data/fetch_data.py
+    python src/data/clean_data.py
+    ```
+
+2.  **Train the models:**
+    Run the training scripts for each model you want to use.
+    ```bash
+    python src/models/arima.py
+    python src/models/xgboost.py
+    python src/models/lstm.py
+    # ... and so on for other models
+    ```
+
+3.  **Start the API server:**
+    ```bash
+    uvicorn src.serve.main:app --reload
+    ```
+    The server will be available at `http://127.0.0.1:8000`.
+
+## 🤖 API Endpoints
+
+### Get Forecast
+
+* **Endpoint**: `/forecast/{model_name}`
+* **Method**: `GET`
+* **Description**: Generates a 30-business-day forecast using the specified model.
+* **URL Params**:
+    * `model_name`: The name of the model to use. Must be one of:
+        * `arima`
+        * `lstm`
+        * `xgboost`
+        * `neuralprophet`
+        * `naive_baseline`
+
+* **Example Request**:
+    ```bash
+    curl [http://127.0.0.1:8000/forecast/xgboost](http://127.0.0.1:8000/forecast/xgboost)
+    ```
+
+* **Example Response**:
+    ```json
+    {
+      "model": "xgboost",
+      "forecast_days": 30,
+      "forecast": [
+        {
+          "Date": "2025-09-23T00:00:00",
+          "Forecast": 515.123456
+        },
+        {
+          "Date": "2025-09-24T00:00:00",
+          "Forecast": 516.789012
+        }
+        // ... 28 more days
+      ]
+    }
+    ```
+````

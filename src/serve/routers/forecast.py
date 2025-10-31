@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import os
 from datetime import timedelta
+import traceback
 
 router = APIRouter(prefix="/forecast", tags=["Forecast"])
 
@@ -62,7 +63,7 @@ def forecast_next_30_days(model_name: str):
     model_type = model_name.lower()
 
     try:
-        if model_type == "baseline":
+        if model_type == "naive_baseline":
             last_value = df["Close"].iloc[-1]
             forecast = np.full(30, last_value)
 
@@ -99,15 +100,32 @@ def forecast_next_30_days(model_name: str):
                 return {"error": "Scaler file missing for LSTM model."}
 
             scaler = joblib.load(scaler_path)
-            last_lookback = df["Close"].values[-30:]
-            scaled_input = scaler.transform(last_lookback.reshape(-1, 1)).reshape(1, 30, 1)
-            forecast_scaled = model.predict(scaled_input)[0]
-            forecast = scaler.inverse_transform(forecast_scaled.reshape(-1, 1)).flatten()
+            last_lookback = df["Close"].values[-30:].tolist() # Start with the last 30 known values
+            forecast = []
+
+            for _ in range(30):
+                # Scale and reshape the input for the model
+                scaled_input = scaler.transform(np.array(last_lookback[-30:]).reshape(-1, 1))
+                scaled_input = scaled_input.reshape(1, 30, 1)
+
+                # Predict the next value
+                forecast_scaled = model.predict(scaled_input)[0]
+                
+                # Inverse transform the prediction to get the actual value
+                next_val = scaler.inverse_transform(forecast_scaled.reshape(-1, 1)).flatten()[0]
+                
+                # Append the prediction to our forecast list
+                forecast.append(next_val)
+                
+                # Append the prediction to the lookback list to use in the next iteration
+                last_lookback.append(next_val)
 
         else:
             return {"error": f"Unsupported model: {model_name}"}
 
     except Exception as e:
+        traceback.print_exc() 
+        
         return {"error": f"Forecast failed: {str(e)}"}
 
     result_df = pd.DataFrame({

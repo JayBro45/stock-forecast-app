@@ -128,4 +128,3 @@ stock-forecast-app/
       ]
     }
     ```
-````

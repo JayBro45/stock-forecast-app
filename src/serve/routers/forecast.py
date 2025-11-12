@@ -27,7 +27,7 @@ def forecast_next_30_days(model_name: str):
         return {"error": f"Model directory not found at {base_path}"}
 
     # Try to find model file dynamically
-    possible_exts = [".pkl", ".h5", ".bin", ".joblib"]
+    possible_exts = [".pkl", ".h5", ".joblib"]
     model_path = None
     for ext in possible_exts:
         candidate = os.path.join(base_path, f"{model_name}_model{ext}")

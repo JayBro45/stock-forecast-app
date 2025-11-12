@@ -6,7 +6,7 @@ import xgboost as xgb
 from sklearn.model_selection import TimeSeriesSplit, RandomizedSearchCV
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
-
+import joblib 
 
 def XGBoostModel(train_df, test_df, save_dir="models/xgboost", HORIZON=30, n_iter=5, cv_splits=3):
     """
@@ -89,11 +89,10 @@ def XGBoostModel(train_df, test_df, save_dir="models/xgboost", HORIZON=30, n_ite
     # --- Multi-output target creation ---
     for i in range(1, HORIZON + 1):
         df[f"target_t+{i}"] = df['Close'].shift(-i)
-    df = df.dropna().reset_index(drop=True)
 
     # ---------------- Train/Test split ----------------
-    train_feat = df[df['Date'] <= train_df['Date'].max()]
-    test_feat = df[df['Date'] > train_df['Date'].max()]
+    train_feat = df[df['Date'] <= train_df['Date'].max()].dropna().reset_index(drop=True)
+    test_feat = df[df['Date'] > train_df['Date'].max()].dropna().reset_index(drop=True)
 
     target_cols = [f"target_t+{i}" for i in range(1, HORIZON + 1)]
 
@@ -132,19 +131,21 @@ def XGBoostModel(train_df, test_df, save_dir="models/xgboost", HORIZON=30, n_ite
     mae = mean_absolute_error(y_test, y_pred)
     rmse = np.sqrt(mean_squared_error(y_test, y_pred))
     metrics = {"MAE": mae, "RMSE": rmse}
+    print(f"Metrics (Avg 30-day): MAE={mae:.2f}, RMSE={rmse:.2f}")
+
 
     # ---------------- Save Model ----------------
-    model_path = os.path.join(save_dir, "xgboost_model_multi.bin")
-    best_model.estimators_[0].save_model(model_path)
-    print(f"💾 Saved multi-output XGBoost model at {model_path}")
+    model_path = os.path.join(save_dir, "xgboost.joblib")
+    joblib.dump(best_model, model_path) 
+    print(f"💾 Saved XGBoost model at {model_path}")
 
     # ---------------- Plot ----------------
     plt.figure(figsize=(12, 6))
     plt.plot(train_df["Date"], train_df["Close"], label="Train Data")
-    plt.plot(test_df["Date"].iloc[:len(y_pred)], y_test.iloc[:, 0], label="Actual Close")
-    plt.plot(test_df["Date"].iloc[:len(y_pred)], y_pred[:, 0], label="Forecast", linestyle="dashed")
+    plt.plot(test_feat["Date"].iloc[:len(y_pred)], y_test.iloc[:, 0], label="Actual Close")
+    plt.plot(test_feat["Date"].iloc[:len(y_pred)], y_pred[:, 0], label="Forecast (t+1)", linestyle="dashed")
     plt.legend()
-    plt.title("XGBoost Model Prediction")
+    plt.title("XGBoost Model Prediction (t+1 only)")
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(os.path.join(save_dir, "xgboost_multi_forecast.png"))

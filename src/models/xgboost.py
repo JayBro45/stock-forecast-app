@@ -4,155 +4,150 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import xgboost as xgb
 from sklearn.model_selection import TimeSeriesSplit, RandomizedSearchCV
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.multioutput import MultiOutputRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-def XGBoostModel(train_df, test_df, save_dir="models/xgboost", n_iter=20, cv_splits=5):
+
+def XGBoostModel(train_df, test_df, save_dir="models/xgboost", HORIZON=30, n_iter=5, cv_splits=3):
     """
-    Train an XGBoost model with cross-validation, forecast on test data, and save results.
+    Train a multi-output XGBoost model that predicts the next HORIZON days at once.
+    Evaluates performance inside test set (1-step ahead) and also enables future forecasts.
 
-    ```
     Parameters
     ----------
     train_df : pd.DataFrame
-        Training data with columns ['Date', 'Close'].
+        Must have: ['Date', 'Close'] (+ optional OHLCV columns)
     test_df : pd.DataFrame
-        Testing data with columns ['Date', 'Close'].
+        Same columns as train_df
     save_dir : str
-        Directory to save model and plots.
+        Folder to store model + forecast plot.
+    HORIZON : int
+        Number of future days to predict at once.
     n_iter : int
-        Number of parameter settings sampled in RandomizedSearchCV.
+        Number of parameter samples for RandomSearch.
     cv_splits : int
-        Number of splits for TimeSeriesSplit.
+        Time series CV splits.
 
     Returns
     -------
-    best_model : xgb.XGBRegressor
-        Trained XGBoost model.
+    best_model : MultiOutputRegressor
+        Trained model.
     y_pred : np.ndarray
-        Forecasted values for test data.
+        Predictions for the test window (multi-output: shape [n_test, HORIZON]).
     metrics : dict
-        MAE, MSE, and RMSE scores.
+        MAE and RMSE based on 1-step actual comparison.
     """
 
     os.makedirs(save_dir, exist_ok=True)
 
+    # ---------------- Merge + Feature Engineering ----------------
     df = pd.concat([train_df, test_df]).reset_index(drop=True)
     df = df[['Date', 'Close', 'High', 'Low', 'Open', 'Volume']]
 
-    # ---------- Technical Indicators (ordered efficiently) ----------
-    df['EMA_9'] = df['Close'].ewm(span=9).mean().shift() # Corrected: Used 'span' for EMA calculation
+    # Technical indicators
+    df['EMA_9'] = df['Close'].ewm(span=9).mean().shift()
     df['SMA_5'] = df['Close'].rolling(5).mean().shift()
     df['SMA_10'] = df['Close'].rolling(10).mean().shift()
     df['SMA_15'] = df['Close'].rolling(15).mean().shift()
     df['SMA_30'] = df['Close'].rolling(30).mean().shift()
+
     df['DayOfWeek'] = df['Date'].dt.dayofweek
 
-    # --- RSI Calculation (fixed index alignment) ---
     def relative_strength_idx(df, n=14):
-        close = df['Close']
-        delta = close.diff()
+        delta = df['Close'].diff()
         gain = np.where(delta > 0, delta, 0)
         loss = np.where(delta < 0, -delta, 0)
         roll_up = pd.Series(gain).rolling(n).mean()
         roll_down = pd.Series(loss).rolling(n).mean()
         rs = roll_up / roll_down
-        rsi = 100 - (100 / (1 + rs))
-        return pd.Series(rsi, index=df.index)
+        return pd.Series(100 - (100 / (1 + rs)), index=df.index)
 
     df['RSI'] = relative_strength_idx(df).fillna(0)
 
     # MACD
-    EMA_12 = pd.Series(df['Close'].ewm(span=12, min_periods=12).mean())
-    EMA_26 = pd.Series(df['Close'].ewm(span=26, min_periods=26).mean())
-    df['MACD'] = pd.Series(EMA_12 - EMA_26)
-    df['MACD_signal'] = pd.Series(df.MACD.ewm(span=9, min_periods=9).mean())
+    EMA_12 = df['Close'].ewm(span=12).mean()
+    EMA_26 = df['Close'].ewm(span=26).mean()
+    df['MACD'] = EMA_12 - EMA_26
+    df['MACD_signal'] = df['MACD'].ewm(span=9).mean()
 
     # ATR
     df['High-Low'] = df['High'] - df['Low']
     df['High-Prev_Close'] = np.abs(df['High'] - df['Close'].shift(1))
     df['Low-Prev_Close'] = np.abs(df['Low'] - df['Close'].shift(1))
     df['TR'] = df[['High-Low', 'High-Prev_Close', 'Low-Prev_Close']].max(axis=1)
-    df['ATR'] = df['TR'].rolling(window=14).mean()
-
-    # Date-based features
+    df['ATR'] = df['TR'].rolling(14).mean()
     df['Month'] = df['Date'].dt.month
     df['Quarter'] = df['Date'].dt.quarter
     df['DayOfYear'] = df['Date'].dt.dayofyear
 
-    # --- Lag features ---
-    for i in range(1, 6):  # Past 5 days
+    # Lag features
+    for i in range(1, 6):
         df[f'Close_lag_{i}'] = df['Close'].shift(i)
         df[f'Volume_lag_{i}'] = df['Volume'].shift(i)
         df[f'ATR_lag_{i}'] = df['ATR'].shift(i)
 
-    df['SMA_5_lag_1'] = df['SMA_5'].shift(1)
-    df['EMA_9_lag_1'] = df['EMA_9'].shift(1)
-
-    # --- Predict next day's Close (safe shift handling) ---
-    df['Close'] = df['Close'].shift(-1)
+    # --- Multi-output target creation ---
+    for i in range(1, HORIZON + 1):
+        df[f"target_t+{i}"] = df['Close'].shift(-i)
     df = df.dropna().reset_index(drop=True)
 
-    # ---------- Train/Test Split ----------
-    train_df_feat = df[df['Date'] <= train_df['Date'].max()].reset_index(drop=True)
-    test_df_feat = df[df['Date'] > train_df['Date'].max()].reset_index(drop=True)
+    # ---------------- Train/Test split ----------------
+    train_feat = df[df['Date'] <= train_df['Date'].max()]
+    test_feat = df[df['Date'] > train_df['Date'].max()]
 
-    X_train = train_df_feat.drop(columns=["Date", "Close"])
-    y_train = train_df_feat["Close"]
-    X_test = test_df_feat.drop(columns=["Date", "Close"])
-    y_test = test_df_feat["Close"]
+    target_cols = [f"target_t+{i}" for i in range(1, HORIZON + 1)]
 
-    # ---------- Model Training ----------
-    model = xgb.XGBRegressor(random_state=42, objective="reg:squarederror")
+    X_train = train_feat.drop(columns=["Date"] + target_cols)
+    y_train = train_feat[target_cols]
+
+    X_test = test_feat.drop(columns=["Date"] + target_cols)
+    y_test = test_feat[target_cols]
+
+    # ---------------- Model & Hyperparameter Search ----------------
+    base_model = xgb.XGBRegressor(objective="reg:squarederror", random_state=42)
 
     param_dist = {
-        "n_estimators": [100, 300, 500, 700],
-        "learning_rate": [0.01, 0.05, 0.1, 0.2],
-        "max_depth": [3, 5, 7, 9],
-        "subsample": [0.6, 0.8, 1.0],
-        "gamma": [0.01, 0.02, 0.05]
+        "n_estimators": [300, 500],
+        "learning_rate": [0.01, 0.1],
+        "max_depth": [6, 8],
     }
 
+    model = MultiOutputRegressor(base_model)
     tscv = TimeSeriesSplit(n_splits=cv_splits)
+
     search = RandomizedSearchCV(
         model,
-        param_distributions=param_dist,
+        param_distributions={"estimator__" + k: v for k, v in param_dist.items()},
         n_iter=n_iter,
         cv=tscv,
         scoring="neg_mean_squared_error",
-        n_jobs=-1,
         verbose=1,
-        random_state=42
+        n_jobs=-1
     )
-
     search.fit(X_train, y_train)
     best_model = search.best_estimator_
 
-    # ---------- Evaluation ----------
+    # ---------------- Prediction & Metrics ----------------
     y_pred = best_model.predict(X_test)
-    mse = mean_squared_error(y_test, y_pred)
     mae = mean_absolute_error(y_test, y_pred)
-    rmse = np.sqrt(mse)
+    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
     metrics = {"MAE": mae, "RMSE": rmse}
 
-    # ---------- Save Model ----------
-    model_path = os.path.join(save_dir, "xgboost_model.bin")
-    best_model.save_model(model_path)
-    print(f"💾 Model saved at: {model_path}")
+    # ---------------- Save Model ----------------
+    model_path = os.path.join(save_dir, "xgboost_model_multi.bin")
+    best_model.estimators_[0].save_model(model_path)
+    print(f"💾 Saved multi-output XGBoost model at {model_path}")
 
-    # ---------- Plot Results  ----------
+    # ---------------- Plot ----------------
     plt.figure(figsize=(12, 6))
-    plt.plot(train_df["Date"], train_df["Close"], label="Train")
-    # Corrected: Used the date axis from the feature-engineered dataframe to prevent a mismatch
-    plt.plot(test_df_feat["Date"], y_test, label="Actual")
-    plt.plot(test_df_feat["Date"], y_pred, label="XGBoost Forecast", linestyle="dashed")
-    plt.xlabel("Date")
-    plt.ylabel("Close Price")
-    plt.title("XGBoost Forecast vs Actual")
+    plt.plot(train_df["Date"], train_df["Close"], label="Train Data")
+    plt.plot(test_df["Date"].iloc[:len(y_pred)], y_test.iloc[:, 0], label="Actual Close")
+    plt.plot(test_df["Date"].iloc[:len(y_pred)], y_pred[:, 0], label="Forecast", linestyle="dashed")
     plt.legend()
+    plt.title("XGBoost Model Prediction")
     plt.grid(True)
     plt.tight_layout()
-    plot_path = os.path.join(save_dir, "xgboost_forecast.png")
-    plt.savefig(plot_path)
+    plt.savefig(os.path.join(save_dir, "xgboost_multi_forecast.png"))
     plt.close()
 
     return best_model, y_pred, metrics

@@ -81,14 +81,59 @@ def forecast_next_30_days(model_name: str):
 
         elif model_type == "xgboost":
             import xgboost as xgb
+            HORIZON = 30  # forecast range
+            # --- Load model ---
             model = xgb.XGBRegressor()
             model.load_model(model_path)
-            last_value = df["Close"].iloc[-1]
-            forecast = []
-            for _ in range(30):
-                next_val = model.predict(np.array([[last_value]]))[0]
-                forecast.append(next_val)
-                last_value = next_val
+
+            # --- Recreate feature pipeline (must match model training) ---
+            feat = df[['Date', 'Close', 'High', 'Low', 'Open', 'Volume']].copy()
+
+            feat['EMA_9'] = feat['Close'].ewm(span=9).mean().shift()
+            feat['SMA_5'] = feat['Close'].rolling(5).mean().shift()
+            feat['SMA_10'] = feat['Close'].rolling(10).mean().shift()
+            feat['SMA_15'] = feat['Close'].rolling(15).mean().shift()
+            feat['SMA_30'] = feat['Close'].rolling(30).mean().shift()
+            feat['DayOfWeek'] = feat['Date'].dt.dayofweek
+
+            def rsi_fn(df, n=14):
+                delta = df['Close'].diff()
+                gain = np.where(delta > 0, delta, 0)
+                loss = np.where(delta < 0, -delta, 0)
+                roll_up = pd.Series(gain).rolling(n).mean()
+                roll_down = pd.Series(loss).rolling(n).mean()
+                rs = roll_up / roll_down
+                return 100 - (100 / (1 + rs))
+
+            feat['RSI'] = rsi_fn(feat).fillna(0)
+
+            EMA_12 = feat['Close'].ewm(span=12).mean()
+            EMA_26 = feat['Close'].ewm(span=26).mean()
+            feat['MACD'] = EMA_12 - EMA_26
+            feat['MACD_signal'] = feat['MACD'].ewm(span=9).mean()
+            feat['High-Low'] = feat['High'] - feat['Low']
+            feat['High-Prev_Close'] = np.abs(feat['High'] - feat['Close'].shift(1))
+            feat['Low-Prev_Close'] = np.abs(feat['Low'] - feat['Close'].shift(1))
+            feat['TR'] = feat[['High-Low', 'High-Prev_Close', 'Low-Prev_Close']].max(axis=1)
+            feat['ATR'] = feat['TR'].rolling(14).mean()
+            feat['Month'] = feat['Date'].dt.month
+            feat['Quarter'] = feat['Date'].dt.quarter
+            feat['DayOfYear'] = feat['Date'].dt.dayofyear
+
+            # lag features
+            for i in range(1, 6):
+                feat[f'Close_lag_{i}'] = feat['Close'].shift(i)
+                feat[f'Volume_lag_{i}'] = feat['Volume'].shift(i)
+                feat[f'ATR_lag_{i}'] = feat['ATR'].shift(i)
+
+            feat = feat.dropna().reset_index(drop=True)
+
+            # --- Use last row as input ---
+            X_last = feat.drop(columns=["Date", "Close"]).iloc[-1].values.reshape(1, -1)
+
+            # --- Model predicts 30 outputs at once ---
+            forecast = model.predict(X_last)[0]  # shape: (30,)
+
 
         elif model_type == "lstm":
             import tensorflow as tf

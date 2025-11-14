@@ -5,6 +5,7 @@ import numpy as np
 import os
 from datetime import timedelta
 import traceback
+from sklearn.multioutput import MultiOutputRegressor
 
 router = APIRouter(prefix="/forecast", tags=["Forecast"])
 
@@ -16,11 +17,9 @@ def forecast_next_30_days(model_name: str):
     Example: /forecast/xgboost
     """
 
-    
     # Use absolute paths relative to this file (src/serve)
     base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..","models","metrics", model_name.lower()))
     data_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..","..","..", "data", "processed", "MSFT_clean.csv"))
-
 
     # Ensure model directory exists
     if not os.path.exists(base_path):
@@ -81,12 +80,13 @@ def forecast_next_30_days(model_name: str):
 
         elif model_type == "xgboost":
             import xgboost as xgb
-            HORIZON = 30  # forecast range
-            # --- Load model ---
-            model = xgb.XGBRegressor()
-            model.load_model(model_path)
 
-            # --- Recreate feature pipeline (must match model training) ---
+            # Load multi-output model
+            model = joblib.load(model_path)
+            if not isinstance(model, MultiOutputRegressor):
+                return {"error": "Loaded model is not a multi-output XGBoost model."}
+
+            # --- Recreate feature pipeline (same as training) ---
             feat = df[['Date', 'Close', 'High', 'Low', 'Open', 'Volume']].copy()
 
             feat['EMA_9'] = feat['Close'].ewm(span=9).mean().shift()
@@ -96,6 +96,7 @@ def forecast_next_30_days(model_name: str):
             feat['SMA_30'] = feat['Close'].rolling(30).mean().shift()
             feat['DayOfWeek'] = feat['Date'].dt.dayofweek
 
+            # RSI
             def rsi_fn(df, n=14):
                 delta = df['Close'].diff()
                 gain = np.where(delta > 0, delta, 0)
@@ -107,20 +108,25 @@ def forecast_next_30_days(model_name: str):
 
             feat['RSI'] = rsi_fn(feat).fillna(0)
 
+            # MACD + Signal
             EMA_12 = feat['Close'].ewm(span=12).mean()
             EMA_26 = feat['Close'].ewm(span=26).mean()
             feat['MACD'] = EMA_12 - EMA_26
             feat['MACD_signal'] = feat['MACD'].ewm(span=9).mean()
+
+            # ATR
             feat['High-Low'] = feat['High'] - feat['Low']
             feat['High-Prev_Close'] = np.abs(feat['High'] - feat['Close'].shift(1))
             feat['Low-Prev_Close'] = np.abs(feat['Low'] - feat['Close'].shift(1))
             feat['TR'] = feat[['High-Low', 'High-Prev_Close', 'Low-Prev_Close']].max(axis=1)
             feat['ATR'] = feat['TR'].rolling(14).mean()
+
+            # Calendar features
             feat['Month'] = feat['Date'].dt.month
             feat['Quarter'] = feat['Date'].dt.quarter
             feat['DayOfYear'] = feat['Date'].dt.dayofyear
 
-            # lag features
+            # Lag features
             for i in range(1, 6):
                 feat[f'Close_lag_{i}'] = feat['Close'].shift(i)
                 feat[f'Volume_lag_{i}'] = feat['Volume'].shift(i)
@@ -128,12 +134,12 @@ def forecast_next_30_days(model_name: str):
 
             feat = feat.dropna().reset_index(drop=True)
 
-            # --- Use last row as input ---
-            X_last = feat.drop(columns=["Date", "Close"]).iloc[-1].values.reshape(1, -1)
+            # Prepare input for prediction
+            X_last = feat.drop(columns=["Date", "Close"], errors="ignore").iloc[[-1]]
+            X_last = X_last.fillna(method="ffill").fillna(method="bfill")
 
-            # --- Model predicts 30 outputs at once ---
+            # Predict all 30 days at once
             forecast = model.predict(X_last)[0]  # shape: (30,)
-
 
         elif model_type == "lstm":
             import tensorflow as tf
@@ -145,24 +151,15 @@ def forecast_next_30_days(model_name: str):
                 return {"error": "Scaler file missing for LSTM model."}
 
             scaler = joblib.load(scaler_path)
-            last_lookback = df["Close"].values[-30:].tolist() # Start with the last 30 known values
+            last_lookback = df["Close"].values[-30:].tolist()  # Start with the last 30 known values
             forecast = []
 
             for _ in range(30):
-                # Scale and reshape the input for the model
                 scaled_input = scaler.transform(np.array(last_lookback[-30:]).reshape(-1, 1))
                 scaled_input = scaled_input.reshape(1, 30, 1)
-
-                # Predict the next value
                 forecast_scaled = model.predict(scaled_input)[0]
-                
-                # Inverse transform the prediction to get the actual value
                 next_val = scaler.inverse_transform(forecast_scaled.reshape(-1, 1)).flatten()[0]
-                
-                # Append the prediction to our forecast list
                 forecast.append(next_val)
-                
-                # Append the prediction to the lookback list to use in the next iteration
                 last_lookback.append(next_val)
 
         else:
@@ -170,7 +167,6 @@ def forecast_next_30_days(model_name: str):
 
     except Exception as e:
         traceback.print_exc() 
-        
         return {"error": f"Forecast failed: {str(e)}"}
 
     result_df = pd.DataFrame({

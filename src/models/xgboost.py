@@ -6,9 +6,10 @@ import xgboost as xgb
 from sklearn.model_selection import TimeSeriesSplit, RandomizedSearchCV
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
-import joblib 
+import joblib
 
-def XGBoostModel(train_df, test_df, save_dir="models/xgboost", HORIZON=30, n_iter=5, cv_splits=3):
+
+def XGBoostModel(train_df, test_df, save_dir="models/xgboost", HORIZON=30, n_iter=3, cv_splits=3):
     """
     Train a multi-output XGBoost model that predicts the next HORIZON days at once.
     Evaluates performance inside test set (1-step ahead) and also enables future forecasts.
@@ -50,9 +51,9 @@ def XGBoostModel(train_df, test_df, save_dir="models/xgboost", HORIZON=30, n_ite
     df['SMA_10'] = df['Close'].rolling(10).mean().shift()
     df['SMA_15'] = df['Close'].rolling(15).mean().shift()
     df['SMA_30'] = df['Close'].rolling(30).mean().shift()
-
     df['DayOfWeek'] = df['Date'].dt.dayofweek
 
+    # RSI
     def relative_strength_idx(df, n=14):
         delta = df['Close'].diff()
         gain = np.where(delta > 0, delta, 0)
@@ -86,21 +87,21 @@ def XGBoostModel(train_df, test_df, save_dir="models/xgboost", HORIZON=30, n_ite
         df[f'Volume_lag_{i}'] = df['Volume'].shift(i)
         df[f'ATR_lag_{i}'] = df['ATR'].shift(i)
 
-    # --- Multi-output target creation ---
-    for i in range(1, HORIZON + 1):
-        df[f"target_t+{i}"] = df['Close'].shift(-i)
+    # ---------------- Train/Test Split ----------------
+    train_part = df[df['Date'] <= train_df['Date'].max()].copy()
+    test_part = df[df['Date'] > train_df['Date'].max()].copy()
 
-    # ---------------- Train/Test split ----------------
-    train_feat = df[df['Date'] <= train_df['Date'].max()].dropna().reset_index(drop=True)
-    test_feat = df[df['Date'] > train_df['Date'].max()].dropna().reset_index(drop=True)
+    # --- Create multi-output targets only for train part ---
+    for i in range(1, HORIZON + 1):
+        train_part[f"target_t+{i}"] = train_part['Close'].shift(-i)
+
+    train_feat = train_part.dropna().reset_index(drop=True)
+    test_feat = test_part.reset_index(drop=True)
 
     target_cols = [f"target_t+{i}" for i in range(1, HORIZON + 1)]
-
     X_train = train_feat.drop(columns=["Date"] + target_cols)
     y_train = train_feat[target_cols]
-
-    X_test = test_feat.drop(columns=["Date"] + target_cols)
-    y_test = test_feat[target_cols]
+    X_test = test_feat.drop(columns=["Date"], errors="ignore")
 
     # ---------------- Model & Hyperparameter Search ----------------
     base_model = xgb.XGBRegressor(objective="reg:squarederror", random_state=42)
@@ -128,27 +129,35 @@ def XGBoostModel(train_df, test_df, save_dir="models/xgboost", HORIZON=30, n_ite
 
     # ---------------- Prediction & Metrics ----------------
     y_pred = best_model.predict(X_test)
-    mae = mean_absolute_error(y_test, y_pred)
-    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    mae = mean_absolute_error(y_train, best_model.predict(X_train))
+    rmse = np.sqrt(mean_squared_error(y_train, best_model.predict(X_train)))
     metrics = {"MAE": mae, "RMSE": rmse}
-    print(f"Metrics (Avg 30-day): MAE={mae:.2f}, RMSE={rmse:.2f}")
-
+    print(f"Metrics (Train window, Avg {HORIZON}-day): MAE={mae:.2f}, RMSE={rmse:.2f}")
 
     # ---------------- Save Model ----------------
     model_path = os.path.join(save_dir, "xgboost.joblib")
-    joblib.dump(best_model, model_path) 
+    joblib.dump(best_model, model_path)
     print(f"💾 Saved XGBoost model at {model_path}")
 
     # ---------------- Plot ----------------
     plt.figure(figsize=(12, 6))
-    plt.plot(train_df["Date"], train_df["Close"], label="Train Data")
-    plt.plot(test_feat["Date"].iloc[:len(y_pred)], y_test.iloc[:, 0], label="Actual Close")
-    plt.plot(test_feat["Date"].iloc[:len(y_pred)], y_pred[:, 0], label="Forecast (t+1)", linestyle="dashed")
+    plt.plot(train_df["Date"], train_df["Close"], label="Train")
+    plt.plot(test_df["Date"], test_df["Close"], label="Actual")
+
+    # If model predicts 30 days ahead, take the last test date and extend 30 business days
+    if y_pred.shape[1] == 30:
+        future_dates = pd.bdate_range(test_df["Date"].iloc[-1] + pd.Timedelta(days=1), periods=30)
+        plt.plot(future_dates, y_pred[-1], label="XGBoost 30-Day Forecast", linestyle="dashed", color="orange")
+    else:
+        plt.plot(test_df["Date"].iloc[:len(y_pred)], y_pred, label="XGBoost Forecast", linestyle="dashed", color="orange")
+
+    plt.xlabel("Date")
+    plt.ylabel("Close Price")
+    plt.title("XGBoost 30-Day Forecast vs Actual")
     plt.legend()
-    plt.title("XGBoost Model Prediction (t+1 only)")
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, "xgboost_multi_forecast.png"))
+    plt.savefig(os.path.join(save_dir, "xgboost_forecast.png"))
     plt.close()
 
     return best_model, y_pred, metrics

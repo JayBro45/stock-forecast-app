@@ -13,3 +13,4 @@ jupyter
 tensorflow
 xgboost
 joblib
+streamlit

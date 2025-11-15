@@ -124,7 +124,7 @@ def XGBoostModel(train_df, test_df, save_dir="models/xgboost",
     print(f"Metrics (TEST t+1): MAE={mae:.4f}, RMSE={rmse:.4f}")
 
     # ---------------- Save Model ----------------
-    model_path = os.path.join(save_dir, "xgboost.joblib")
+    model_path = os.path.join(save_dir, "xgboost_model.joblib")
     joblib.dump(best_model, model_path)
     print(f"💾 Saved XGBoost model at {model_path}")
 

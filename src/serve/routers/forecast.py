@@ -138,7 +138,7 @@ def forecast_next_30_days(model_name: str):
             feat = feat.dropna().reset_index(drop=True)
 
             # XGBoost input (same columns as training)
-            X_last = feat.drop(columns=["Date", "Close"]).iloc[[-1]]
+            X_last = feat.drop(columns=["Date"]).iloc[[-1]]
             X_last = X_last.fillna(method="ffill").fillna(method="bfill")
 
             # === Predict all 30 future values at once ===

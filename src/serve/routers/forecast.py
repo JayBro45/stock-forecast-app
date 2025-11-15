@@ -5,7 +5,6 @@ import numpy as np
 import os
 from datetime import timedelta
 import traceback
-from sklearn.multioutput import MultiOutputRegressor
 
 router = APIRouter(prefix="/forecast", tags=["Forecast"])
 
@@ -80,20 +79,23 @@ def forecast_next_30_days(model_name: str):
 
         elif model_type == "xgboost":
             import xgboost as xgb
+            from sklearn.multioutput import MultiOutputRegressor
 
-            # Load multi-output model
+            # Load trained multi-output model
             model = joblib.load(model_path)
             if not isinstance(model, MultiOutputRegressor):
                 return {"error": "Loaded model is not a multi-output XGBoost model."}
 
-            # --- Recreate feature pipeline (same as training) ---
+            # ===== Recreate ALL features exactly like training =====
             feat = df[['Date', 'Close', 'High', 'Low', 'Open', 'Volume']].copy()
 
-            feat['EMA_9'] = feat['Close'].ewm(span=9).mean().shift()
-            feat['SMA_5'] = feat['Close'].rolling(5).mean().shift()
-            feat['SMA_10'] = feat['Close'].rolling(10).mean().shift()
-            feat['SMA_15'] = feat['Close'].rolling(15).mean().shift()
-            feat['SMA_30'] = feat['Close'].rolling(30).mean().shift()
+            # Technical indicators (all shifted to avoid leakage)
+            feat['EMA_9'] = feat['Close'].ewm(span=9).mean().shift(1)
+            feat['SMA_5'] = feat['Close'].rolling(5).mean().shift(1)
+            feat['SMA_10'] = feat['Close'].rolling(10).mean().shift(1)
+            feat['SMA_15'] = feat['Close'].rolling(15).mean().shift(1)
+            feat['SMA_30'] = feat['Close'].rolling(30).mean().shift(1)
+
             feat['DayOfWeek'] = feat['Date'].dt.dayofweek
 
             # RSI
@@ -106,22 +108,22 @@ def forecast_next_30_days(model_name: str):
                 rs = roll_up / roll_down
                 return 100 - (100 / (1 + rs))
 
-            feat['RSI'] = rsi_fn(feat).fillna(0)
+            feat['RSI'] = rsi_fn(feat).shift(1).fillna(0)
 
-            # MACD + Signal
+            # MACD
             EMA_12 = feat['Close'].ewm(span=12).mean()
             EMA_26 = feat['Close'].ewm(span=26).mean()
-            feat['MACD'] = EMA_12 - EMA_26
-            feat['MACD_signal'] = feat['MACD'].ewm(span=9).mean()
+            feat['MACD'] = (EMA_12 - EMA_26).shift(1)
+            feat['MACD_signal'] = feat['MACD'].ewm(span=9).mean().shift(1)
 
             # ATR
             feat['High-Low'] = feat['High'] - feat['Low']
             feat['High-Prev_Close'] = np.abs(feat['High'] - feat['Close'].shift(1))
             feat['Low-Prev_Close'] = np.abs(feat['Low'] - feat['Close'].shift(1))
             feat['TR'] = feat[['High-Low', 'High-Prev_Close', 'Low-Prev_Close']].max(axis=1)
-            feat['ATR'] = feat['TR'].rolling(14).mean()
+            feat['ATR'] = feat['TR'].rolling(14).mean().shift(1)
 
-            # Calendar features
+            # Date features
             feat['Month'] = feat['Date'].dt.month
             feat['Quarter'] = feat['Date'].dt.quarter
             feat['DayOfYear'] = feat['Date'].dt.dayofyear
@@ -132,14 +134,15 @@ def forecast_next_30_days(model_name: str):
                 feat[f'Volume_lag_{i}'] = feat['Volume'].shift(i)
                 feat[f'ATR_lag_{i}'] = feat['ATR'].shift(i)
 
+            # Keep last fully valid row for forecasting
             feat = feat.dropna().reset_index(drop=True)
 
-            # Prepare input for prediction
-            X_last = feat.drop(columns=["Date", "Close"], errors="ignore").iloc[[-1]]
+            # XGBoost input (same columns as training)
+            X_last = feat.drop(columns=["Date", "Close"]).iloc[[-1]]
             X_last = X_last.fillna(method="ffill").fillna(method="bfill")
 
-            # Predict all 30 days at once
-            forecast = model.predict(X_last)[0]  # shape: (30,)
+            # === Predict all 30 future values at once ===
+            forecast = model.predict(X_last)[0]   # Shape: (30,)
 
         elif model_type == "lstm":
             import tensorflow as tf

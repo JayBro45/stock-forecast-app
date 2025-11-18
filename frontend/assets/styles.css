@@ -1,0 +1,33 @@
+/* General Dashboard Styling */
+body, .stApp {
+    background-color: #0f1117 !important;
+    color: white !important;
+}
+
+/* Price Card */
+.price-card {
+    background: #1b1e27;
+    padding: 20px;
+    border-radius: 12px;
+    width: 280px;
+    text-align: center;
+    border: 1px solid #2a2c35;
+    margin-bottom: 20px;
+}
+.price-card h1 {
+    font-size: 40px;
+    margin-bottom: -5px;
+}
+.price-card h2 {
+    font-size: 22px;
+    opacity: 0.8;
+}
+
+/* Portfolio Cards */
+.stMetric {
+    background: #1b1e27;
+    padding: 20px !important;
+    border-radius: 12px;
+    border: 1px solid #33353f;
+}
+
